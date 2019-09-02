@@ -1,6 +1,7 @@
 package actionaverager
 
 import (
+	"encoding/json"
 	"sync"
 )
 
@@ -10,9 +11,14 @@ type ActionAverager interface {
 	GetStats() string
 }
 
+type outputJSON struct {
+	Action  string  `json:"action"`
+	Average float64 `json:"avg"`
+}
+
 type actionData struct {
-	TotalTime uint64
-	CallCount uint64
+	TotalTime float64
+	CallCount float64
 }
 
 type safeActionDatastore struct {
@@ -41,5 +47,19 @@ func (acav *ActionAverage) AddAction(input string) error {
 
 // GetStats computes the average time for each action in the datastore
 func (acav *ActionAverage) GetStats() string {
-	return ""
+	acav.actionData.Mux.Lock()
+	defer acav.actionData.Mux.Unlock()
+
+	var output []outputJSON
+	for action, data := range acav.actionData.Data {
+		item := outputJSON{
+			Action:  action,
+			Average: data.TotalTime / data.CallCount,
+		}
+		output = append(output, item)
+	}
+
+	// WARNING: should not suppress error, but have to because of assignment constraints
+	jsonBytes, _ := json.Marshal(output)
+	return string(jsonBytes)
 }
