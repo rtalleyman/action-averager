@@ -23,12 +23,12 @@ guide to set up your go environment then run the following commands:
 
 ## Building
 
-Run `make build`
+Run `make build`.
 This will compile an executable that acts as an example for using the package.
 
 ## Running
 
-Run `make run` or `make build` then `make run`
+Run `make run` or `make build` then `make run`.
 This will either build then run or run an already built example executable.
 
 ## Other Make targets
