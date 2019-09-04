@@ -23,15 +23,29 @@ guide to set up your go environment then run the following commands:
 
 ## Building
 
-Run `make build`.
+Run `make build`
+
 This will compile an executable that acts as an example for using the package.
 
 ## Running
 
-Run `make run` or `make build` then `make run`.
-This will either build then run or run an already built example executable.
+Run `make run`
+
+This will run the example executable for this project.
+
+## Testing
+
+Testing is done using the ginkgo BDD test framework with gomega as the matcher
+library. More information can be found here: https://onsi.github.io/ginkgo/.
+The repo needs to be initialized before running these tests so be sure to run
+`make init` and follow any and all of the instructions in the Set up section.
+
+Run `make test` to quickly run all of the tests.
+
+Run `make test-debug` to debug tests and to provide more verbose test output.
 
 ## Other Make targets
 
 Running `make all` will build, run, then delete the example executable.
+
 Running `make clean` will delete the example executable.
