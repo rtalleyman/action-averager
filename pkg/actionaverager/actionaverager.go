@@ -86,6 +86,9 @@ func (acav *ActionAverage) AddAction(input string) error {
 	if !ok {
 		return fmt.Errorf("time field is not number in input %s, rejecting", input)
 	}
+	if timeFlt < 0 {
+		return fmt.Errorf("negative time value for input %s, rejecting", input)
+	}
 
 	acav.actionData.Mux.Lock()
 	defer acav.actionData.Mux.Unlock()
