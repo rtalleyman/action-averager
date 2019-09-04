@@ -10,6 +10,15 @@ formatted string which contains the running average times for each of the
 added actions like:
 `[{"action":"crawl","avg":300},{"action":"jump","avg":289.5}]`
 
+## Dependencies
+
+* `go toolchain` installation that follows: https://golang.org/doc/code.html.
+* `make` in order to run make targets (otherwise run commands in make recipes explicitly)
+* Unix like operating system to handle paths in make recipes (otherwise run windows equivalent commands per recipe)
+* `ginkgo` installed by running `make init`
+* `gomega` installed by running `make init`
+
+
 ## Set up
 
 This project expects that you are following the go development guide:
