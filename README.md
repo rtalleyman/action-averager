@@ -13,11 +13,12 @@ added actions like:
 ## Dependencies
 
 * `go toolchain` installation that follows: https://golang.org/doc/code.html.
-* `make` in order to run make targets (otherwise run commands in make recipes explicitly)
-* Unix like operating system to handle paths in make recipes (otherwise run windows equivalent commands per recipe)
+* `make` in order to run make targets (otherwise run commands in make recipes
+explicitly)
+* Unix like operating system to handle paths in make recipes (otherwise run
+windows equivalent commands per recipe)
 * `ginkgo` installed by running `make init`
 * `gomega` installed by running `make init`
-
 
 ## Set up
 
@@ -40,7 +41,7 @@ This will compile an executable that acts as an example for using the package.
 
 Run `make run`
 
-This will run the example executable for this project.
+This will build and run the example executable for this project.
 
 ## Testing
 
@@ -51,10 +52,10 @@ The repo needs to be initialized before running these tests so be sure to run
 
 Run `make test` to quickly run all of the tests.
 
-Run `make test-debug` to debug tests and to provide more verbose test output.
+Run `make test-debug` to debug tests and to provide verbose test output.
 
 ## Other Make targets
 
-Running `make all` will build, run, then delete the example executable.
+Running `make all` will build, run, and delete the example executable.
 
 Running `make clean` will delete the example executable.

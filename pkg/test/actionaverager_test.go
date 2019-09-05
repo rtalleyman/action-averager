@@ -1,6 +1,7 @@
 package actionaverager_test
 
 import (
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -10,8 +11,12 @@ import (
 )
 
 const (
-	emptyStats    = "[]"
-	delay         = true
+	emptyStats = "[]"
+
+	delay     = true
+	verifyAll = true
+
+	replace1      = 1
 	delayDuration = 10
 )
 
@@ -19,20 +24,33 @@ func addMultipleActions(averager actionaverager.ActionAverager, actions []string
 	for i := range actions {
 		err := averager.AddAction(actions[i])
 		Expect(err).NotTo(HaveOccurred())
+		// NOTE: delay should only be used when running concurrent tests
 		if isDelay {
 			time.Sleep(delayDuration * time.Millisecond)
 		}
 	}
 }
 
-func verifyMultipleDifferentStats(stats string, expSubstrings []string) {
+func verifyMultipleDifferentStats(stats string, expSubstrings []string, fullVerify bool) {
+	expNumCommas := len(expSubstrings) - 1
 	for i := range expSubstrings {
 		//NOTE: use ContainSubstring, since order of actions is go map order so explicit string equals fails intermittently
 		Expect(stats).To(ContainSubstring(expSubstrings[i]))
+		stats = strings.Replace(stats, expSubstrings[i], "", replace1)
+	}
+	// NOTE: this make sure the string only contains what is in the expected substrings and that it is properly formatted
+	// meaning there should be 1 less comma than fields and only 1 [ and ]. This should not be run in some concurrent cases
+	// where the exact output can not be guaranteed at any time i.e. concurrent calls of both AddAction and GetStats.
+	if fullVerify {
+		stats = strings.Replace(stats, ",", "", expNumCommas)
+		stats = strings.Replace(stats, "[", "", replace1)
+		stats = strings.Replace(stats, "]", "", replace1)
+		Expect(stats).To(BeEmpty())
 	}
 }
 
 var _ = Describe("action-averager tests", func() {
+	// NOTE: create new averager for each test being run
 	var averager actionaverager.ActionAverager
 	BeforeEach(func() {
 		averager = actionaverager.NewActionAverager()
@@ -58,7 +76,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"run","avg":55}`,
 					`{"action":"skip","avg":145}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should average multiple inputs of the same action", func() {
@@ -88,7 +106,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"skip","avg":145.38933333333333}`,
 					`{"action":"jump","avg":32.785}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should handle a mix of single and multiple inputs to different actions", func() {
@@ -106,7 +124,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"run","avg":125}`,
 					`{"action":"crawl","avg":300}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should keep averaging after GetStats is called", func() {
@@ -120,7 +138,8 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"run","avg":75}`,
 					`{"action":"walk","avg":225}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
+
 				err := averager.AddAction(`{"action":"run","time":80}`)
 				Expect(err).NotTo(HaveOccurred())
 				stats = averager.GetStats()
@@ -128,7 +147,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"run","avg":77.5}`,
 					expStats[1],
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should handle an action with a time of 0", func() {
@@ -136,6 +155,7 @@ var _ = Describe("action-averager tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 				stats := averager.GetStats()
 				Expect(stats).To(Equal(`[{"action":"bike","avg":0}]`))
+
 				err = averager.AddAction(`{"action":"bike","time":50}`)
 				Expect(err).NotTo(HaveOccurred())
 				stats = averager.GetStats()
@@ -160,8 +180,17 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"skip","time":50}`,
 					`{"action":"jump","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				// NOTE: done is the sync channel for the concurrent go func thread
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				// NOTE: block until done is received meaning concurrent go func is finished
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":10}`,
@@ -171,7 +200,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"skip","avg":50}`,
 					`{"action":"jump","avg":60}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should average multiple inputs of the same action concurrently", func() {
@@ -185,8 +214,15 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"bike","time":60}`,
 				}
-				go addMultipleActions(averager, actions1, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions1, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions0, delay)
+				<-done
+
 				stats := averager.GetStats()
 				Expect(stats).To(Equal(`[{"action":"bike","avg":35}]`))
 			})
@@ -202,14 +238,21 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"swim","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":30}`,
 					`{"action":"swim","avg":40}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should handle a mix of single and multiple inputs to different actions concurrently", func() {
@@ -223,8 +266,15 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"walk","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":30}`,
@@ -232,7 +282,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"run","avg":30}`,
 					`{"action":"walk","avg":60}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 
 			It("should handle concurrent calls to AddAction and GetStats", func() {
@@ -257,7 +307,7 @@ var _ = Describe("action-averager tests", func() {
 						`{"action":"bike","avg":100}`,
 						`{"action":"run","avg":90}`,
 					}
-					verifyMultipleDifferentStats(stats, minExpStats)
+					verifyMultipleDifferentStats(stats, minExpStats, !verifyAll)
 					addMultipleActions(averager, actions1, delay)
 				}
 
@@ -270,20 +320,26 @@ var _ = Describe("action-averager tests", func() {
 					Expect(err).NotTo(HaveOccurred())
 					stats := averager.GetStats()
 					minExpStats0 := []string{`{"action":"walk","avg":40}`}
-					verifyMultipleDifferentStats(stats, minExpStats0)
+					verifyMultipleDifferentStats(stats, minExpStats0, !verifyAll)
 
 					addMultipleActions(averager, actions, delay)
 					stats = averager.GetStats()
 					minExpStats1 := []string{
-						minExpStats0[0],
+						`{"action":"walk","avg":40}`,
 						`{"action":"skip","avg":60}`,
 						`{"action":"jump","avg":50}`,
 					}
-					verifyMultipleDifferentStats(stats, minExpStats1)
+					verifyMultipleDifferentStats(stats, minExpStats1, !verifyAll)
 				}
 
-				go funcs1()
+				done := make(chan bool)
+				go func() {
+					funcs1()
+					done <- true
+				}()
 				funcs0()
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":100}`,
@@ -294,7 +350,8 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"swim","avg":80}`,
 					`{"action":"hop","avg":70}`,
 				}
-				verifyMultipleDifferentStats(stats, expStats)
+				// NOTE: full verification can happen here since all actions have stopped being added
+				verifyMultipleDifferentStats(stats, expStats, verifyAll)
 			})
 		})
 	})
@@ -311,8 +368,7 @@ var _ = Describe("action-averager tests", func() {
 		It("should fail if a non json string is given as input", func() {
 			err := averager.AddAction("string")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid character"))
-			Expect(err.Error()).To(ContainSubstring("looking for beginning of value"))
+			Expect(err.Error()).To(Equal("invalid character 's' looking for beginning of value"))
 			stats := averager.GetStats()
 			Expect(stats).To(Equal(emptyStats))
 		})
@@ -320,8 +376,14 @@ var _ = Describe("action-averager tests", func() {
 		It("should fail if values are not correct for the fields", func() {
 			err := averager.AddAction(`{"action":123,"time":"run"}`)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(`action field is not string in input {"action":123,"time":"run"}, rejecting`))
+			Expect(err.Error()).To(Equal(`action field is not a string in input {"action":123,"time":"run"}, rejecting`))
 			stats := averager.GetStats()
+			Expect(stats).To(Equal(emptyStats))
+
+			err = averager.AddAction(`{"action":"run","time":"run"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal(`time field is not a number in input {"action":"run","time":"run"}, rejecting`))
+			stats = averager.GetStats()
 			Expect(stats).To(Equal(emptyStats))
 		})
 
@@ -331,12 +393,18 @@ var _ = Describe("action-averager tests", func() {
 			Expect(err.Error()).To(Equal(`input {"action":"run","tome":123} is missing "time" field, rejecting`))
 			stats := averager.GetStats()
 			Expect(stats).To(Equal(emptyStats))
+
+			err = averager.AddAction(`{"actoin":"run","time":123}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal(`input {"actoin":"run","time":123} is missing "action" field, rejecting`))
+			stats = averager.GetStats()
+			Expect(stats).To(Equal(emptyStats))
 		})
 
 		It("should fail if there are additional fields", func() {
 			err := averager.AddAction(`{"action":"run","time":123,"extra":true}`)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(`extra field in input {"action":"run","time":123,"extra":true}, rejecting`))
+			Expect(err.Error()).To(Equal(`unexpected number of fields, 3, in input {"action":"run","time":123,"extra":true}, expect 2, rejecting`))
 			stats := averager.GetStats()
 			Expect(stats).To(Equal(emptyStats))
 		})
@@ -344,7 +412,7 @@ var _ = Describe("action-averager tests", func() {
 		It("should fail if there are duplicate fields", func() {
 			err := averager.AddAction(`{"action":"run","action":"jump"}`)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(`extra field in input {"action":"run","action":"jump"}, rejecting`))
+			Expect(err.Error()).To(Equal(`unexpected number of fields, 1, in input {"action":"run","action":"jump"}, expect 2, rejecting`))
 			stats := averager.GetStats()
 			Expect(stats).To(Equal(emptyStats))
 		})
@@ -367,6 +435,7 @@ var _ = Describe("action-averager tests", func() {
 			addMultipleActions(averager, actions, !delay)
 			err := averager.AddAction(`{"act":"jump","time":10}`)
 			Expect(err).To(HaveOccurred())
+
 			err = averager.AddAction(`{"action":"run","time":30}`)
 			Expect(err).NotTo(HaveOccurred())
 			stats := averager.GetStats()
@@ -374,7 +443,7 @@ var _ = Describe("action-averager tests", func() {
 				`{"action":"run","avg":25}`,
 				`{"action":"jump","avg":10}`,
 			}
-			verifyMultipleDifferentStats(stats, expStats)
+			verifyMultipleDifferentStats(stats, expStats, verifyAll)
 		})
 	})
 })

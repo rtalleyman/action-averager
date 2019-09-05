@@ -62,11 +62,12 @@ func (acav *ActionAverage) AddAction(input string) error {
 
 	inMap, ok := inInterface.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unable to convert input %s to internal data", input)
+		return fmt.Errorf("unable to convert input %s to internal data, rejecting", input)
 	}
 
-	if len(inMap) != expInputLen {
-		return fmt.Errorf("extra field in input %s, rejecting", input)
+	numKeys := len(inMap)
+	if numKeys != expInputLen {
+		return fmt.Errorf("unexpected number of fields, %d, in input %s, expect %d, rejecting", numKeys, input, expInputLen)
 	}
 
 	action, ok := inMap[actKey]
@@ -75,7 +76,7 @@ func (acav *ActionAverage) AddAction(input string) error {
 	}
 	actStr, ok := action.(string)
 	if !ok {
-		return fmt.Errorf("action field is not string in input %s, rejecting", input)
+		return fmt.Errorf("action field is not a string in input %s, rejecting", input)
 	}
 
 	time, ok := inMap[timeKey]
@@ -84,7 +85,7 @@ func (acav *ActionAverage) AddAction(input string) error {
 	}
 	timeFlt, ok := time.(float64)
 	if !ok {
-		return fmt.Errorf("time field is not number in input %s, rejecting", input)
+		return fmt.Errorf("time field is not a number in input %s, rejecting", input)
 	}
 	if timeFlt < 0 {
 		return fmt.Errorf("negative time value for input %s, rejecting", input)
@@ -96,6 +97,7 @@ func (acav *ActionAverage) AddAction(input string) error {
 	// Check if action is already tracked in datastore if not add an entry for it, otherwise update existing entry
 	data, ok := acav.actionData.Data[actStr]
 	if ok {
+		// NOTE: data is a pointer to an actionData object so this will update the underlying object
 		data.TotalTime += timeFlt
 		data.CallCount++
 	} else {
@@ -111,11 +113,17 @@ func (acav *ActionAverage) AddAction(input string) error {
 
 // GetStats computes the average time for each action in the datastore
 func (acav *ActionAverage) GetStats() string {
+	// NOTE: the defer unlock could be moved to after the for loop for performance, but is here for organization
 	acav.actionData.Mux.Lock()
 	defer acav.actionData.Mux.Unlock()
 
 	var output []*outputJSON
 	for action, data := range acav.actionData.Data {
+		// NOTE: future proofing against possible divide by 0, currently this should not be possible
+		if data.CallCount <= 0 {
+			continue
+		}
+		// NOTE: divisions are expensive so only calculate averages when asked not as actions are added
 		item := &outputJSON{
 			Action:  action,
 			Average: data.TotalTime / data.CallCount,
