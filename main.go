@@ -11,8 +11,9 @@ import (
 const (
 	exitOK        = 0
 	exitErr       = 1
-	delayDuration = 100
-	delay         = true
+	delayDuration = 10
+
+	delay = true
 )
 
 func handleMutlipleAdds(averager actionaverager.ActionAverager, actions []string, isDelay bool) {
@@ -42,7 +43,7 @@ func main() {
 	averager := actionaverager.NewActionAverager()
 
 	action := `{"action":"run","time":50}`
-	fmt.Println("Single action...")
+	fmt.Println("Adding single action...")
 	handleAddAction(averager, action)
 	handleGetStats(averager)
 
@@ -52,7 +53,7 @@ func main() {
 		`{"action":"jump","time":100}`,
 	}
 
-	fmt.Println("Multiple actions...")
+	fmt.Println("Adding multiple actions to previous action...")
 	handleMutlipleAdds(averager, actions0, !delay)
 	handleGetStats(averager)
 
@@ -67,7 +68,7 @@ func main() {
 		`{"action":"jump","time":123}`,
 	}
 
-	fmt.Println("Multiple concurrent actions...")
+	fmt.Println("Adding multiple concurrent actions to previous actions...")
 	go handleMutlipleAdds(averager, actions1, delay)
 	handleMutlipleAdds(averager, actions2, delay)
 	handleGetStats(averager)

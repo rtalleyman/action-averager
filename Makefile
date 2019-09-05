@@ -13,7 +13,7 @@ run: build
 	./averager-run
 
 test:
-	ginkgo -p -keepGoing --randomizeAllSpecs pkg/test/
+	ginkgo -p -race -keepGoing --randomizeAllSpecs pkg/test/
 
 test-debug:
 	ginkgo -p -v -race -keepGoing --randomizeAllSpecs --progress --trace pkg/test/
