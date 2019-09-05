@@ -181,7 +181,7 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"jump","time":60}`,
 				}
 
-				// NOTE: done is the sync channel for the concurrent go func thread
+				// NOTE: done is the sync channel for the concurrent go func
 				done := make(chan bool)
 				go func() {
 					addMultipleActions(averager, actions0, delay)

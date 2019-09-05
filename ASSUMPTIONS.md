@@ -55,6 +55,10 @@ called not every time an action is added.
 cases.
 * ginkgo and gomega were used as the BDD framework, since they are the
 standard in go.
+* Tests live in a different package than the product, since they are black box
+and should only be testing the exported functions. If they live in the same
+package it is too easy to have tests reach into unexported parts of the code to
+make testing easier (which should not be done!)
 * Tests tend to be more verbose and less elegant in order to make them simpler
 to read and comprehend.
 * Test cases are run in parallel in order to improve performance.
