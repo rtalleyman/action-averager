@@ -69,8 +69,15 @@ func main() {
 	}
 
 	fmt.Println("Adding multiple concurrent actions to previous actions...")
-	go handleMutlipleAdds(averager, actions1, delay)
+	// NOTE: done is the sync channel for the concurrent go func
+	done := make(chan bool)
+	go func() {
+		handleMutlipleAdds(averager, actions1, delay)
+		done <- true
+	}()
 	handleMutlipleAdds(averager, actions2, delay)
+	// NOTE: block until done is received meaning concurrent go func is finished
+	<-done
 	handleGetStats(averager)
 
 	fmt.Println("Finished example run exiting...")

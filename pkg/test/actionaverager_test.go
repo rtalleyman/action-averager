@@ -180,8 +180,17 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"skip","time":50}`,
 					`{"action":"jump","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				// NOTE: done is the sync channel for the concurrent go func thread
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				// NOTE: block until done is received meaning concurrent go func is finished
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":10}`,
@@ -205,8 +214,15 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"bike","time":60}`,
 				}
-				go addMultipleActions(averager, actions1, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions1, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions0, delay)
+				<-done
+
 				stats := averager.GetStats()
 				Expect(stats).To(Equal(`[{"action":"bike","avg":35}]`))
 			})
@@ -222,8 +238,15 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"swim","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":30}`,
@@ -243,8 +266,15 @@ var _ = Describe("action-averager tests", func() {
 					`{"action":"bike","time":50}`,
 					`{"action":"walk","time":60}`,
 				}
-				go addMultipleActions(averager, actions0, delay)
+
+				done := make(chan bool)
+				go func() {
+					addMultipleActions(averager, actions0, delay)
+					done <- true
+				}()
 				addMultipleActions(averager, actions1, delay)
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":30}`,
@@ -302,8 +332,14 @@ var _ = Describe("action-averager tests", func() {
 					verifyMultipleDifferentStats(stats, minExpStats1, !verifyAll)
 				}
 
-				go funcs1()
+				done := make(chan bool)
+				go func() {
+					funcs1()
+					done <- true
+				}()
 				funcs0()
+				<-done
+
 				stats := averager.GetStats()
 				expStats := []string{
 					`{"action":"bike","avg":100}`,
